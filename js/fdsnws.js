@@ -81,14 +81,13 @@ function FDSNWS_Download(controlDiv, db, data, cbDownloadFinished) {
 			url = "http://geofon-open2.gfz-potsdam.de/fdsnws/dataselect/1/query"
 
 		xhr = $.ajax({
-	    		dataType: 'native',
-	    		processData: false,
 			method: 'GET',
 			url: url + '?' + $.param(q),
+			dataType: 'native',
+			processData: false,
 			xhrFields: {
 				responseType: 'arraybuffer'
 			},
-
 			success: function(data) {
 				if (xhr.status != 200)
 					data = new ArrayBuffer()
@@ -104,7 +103,6 @@ function FDSNWS_Download(controlDiv, db, data, cbDownloadFinished) {
 					
 				store(blob, p.id)
 			},
-
 			error: function() {
 				xhr = null
 
@@ -395,16 +393,16 @@ function WIStatusListControl(htmlTagId) {
 			throw WIError("fdsnws.js: IndexedDB not supported by browser!")
 		}
 
-		var openRequest
+		var dbOpenReq
 		var dbVersion = 1
 
 		try {
-			openRequest = window.indexedDB.open("webdc", {version: 1, storage: "permanent"})
+			dbOpenReq = window.indexedDB.open("webdc", {version: 1, storage: "permanent"})
 		}
 		catch (e) {
 			if (e instanceof TypeError) {
 				try {
-					openRequest = window.indexedDB.open("webdc", 1)
+					dbOpenReq = window.indexedDB.open("webdc", 1)
 				}
 				catch (e) {
 					throw WIError(e.message)
@@ -415,11 +413,11 @@ function WIStatusListControl(htmlTagId) {
 			}
 		}
 
-		openRequest.onsuccess = function(event) {
+		dbOpenReq.onsuccess = function(event) {
 			db = event.target.result
 
 			db.onerror = function(event) {
-  				wiConsole.error("fdsnws.js: database error: " + event.target.errorCode)
+				wiConsole.error("fdsnws.js: database error: " + event.target.errorCode)
 			}
 
 			// For browsers not supporting 'onupgradeneeded'
@@ -434,11 +432,11 @@ function WIStatusListControl(htmlTagId) {
 			loadRequests()
 		}
 
-		openRequest.onupgradeneeded = function(event) {
+		dbOpenReq.onupgradeneeded = function(event) {
 			createObjectStore(event.target.result)
 		}
 
-		openRequest.onerror = function(event) {
+		dbOpenReq.onerror = function(event) {
 			wiConsole.error("fdsnws.js: access to database denied")
 		}
 	}
@@ -466,11 +464,11 @@ function WIStatusListControl(htmlTagId) {
 			if (loc == '')
 				loc = '--'
 
-			postData += net + " " + sta + " " + loc + " " + cha + " " + start + " " + end + "\n"
+			postData += net + ' ' + sta + ' ' + loc + ' ' + cha + ' ' + start + ' ' + end + '\n'
 		})
 
 		$.ajax({
-			type: "POST",
+			type: 'POST',
 			url: routerURL,
 			data: postData,
 			contentType: 'text/plain',

@@ -183,7 +183,7 @@ $(document).ready(function() {
 		interfaceLoader.loadjs('mapping.js', "mapControl", null);
 
 		interfaceLoader.loadjs('service.js', "wiService", null);
-		interfaceLoader.loadjs('status.js', "wiStatusListControl", null);
+		interfaceLoader.loadjs('fdsnws.js', "wiStatusListControl", null);
 		interfaceLoader.loadjs('request.js',"requestControl");
 		interfaceLoader.loadjs('events.js', "eventSearchControl", null);
 		interfaceLoader.loadjs('station.js', "stationSearchControl", null);

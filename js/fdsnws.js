@@ -409,7 +409,7 @@ function WIStatusListControl(htmlTagId) {
 		var dbVersion = 1
 
 		try {
-			dbOpenReq = window.indexedDB.open("webdc", { version: dbVersion, storage: "permanent" })
+			dbOpenReq = window.indexedDB.open("webdc", { version: dbVersion, storage: "persistent" })
 		}
 		catch (e) {
 			if (e instanceof TypeError) {

@@ -31,7 +31,7 @@ function FDSNWS_Download(controlDiv, db, data, cbDownloadFinished) {
 		controlDiv.append(pbarDiv)
 		controlDiv.append(popupDiv)
 
-		popupDiv.dialog({autoOpen: false, modal: true, width: 600})
+		popupDiv.dialog({ autoOpen: false, modal: true, width: 600 })
 
 		$.each(data.params, function(i, p) {
 			var row = $('<tr id="wi-download-status-' + p.id + '"/>')
@@ -69,6 +69,7 @@ function FDSNWS_Download(controlDiv, db, data, cbDownloadFinished) {
 		var t = db.transaction(["blobs"], "readwrite")
 		t.objectStore("blobs").put(blob, id)
 		t.oncomplete = doPart
+		t.onerror = cbDownloadFinished
 	}
 
 	function fetch(p) {
@@ -116,6 +117,7 @@ function FDSNWS_Download(controlDiv, db, data, cbDownloadFinished) {
 
 	function process(p) {
 		var t = db.transaction(["blobs"])
+
 		t.objectStore("blobs").get(p.id).onsuccess = function(event) {
 			var blob = event.target.result
 
@@ -130,6 +132,10 @@ function FDSNWS_Download(controlDiv, db, data, cbDownloadFinished) {
 
 				doPart()
 			}
+		}
+
+		t.onerror = function(event) {
+			fetch(p)
 		}
 	}
 			
@@ -163,12 +169,17 @@ function FDSNWS_Download(controlDiv, db, data, cbDownloadFinished) {
 		(function addPart(i) {
 			if (i < n) {
 				var t = db.transaction(["blobs"])
+
 				t.objectStore("blobs").get(data.params[i].id).onsuccess = function(event) {
 					var blob = event.target.result
 
 					if (blob != null)
 						parts.push(blob)
 
+					addPart(i+1)
+				}
+
+				t.onerror = function(event) {
 					addPart(i+1)
 				}
 			}
@@ -373,6 +384,7 @@ function WIStatusListControl(htmlTagId) {
 
 	function loadRequests() {
 		var t = db.transaction(["requests"])
+
 		t.objectStore("requests").openCursor().onsuccess = function(event) {
 			var cursor = event.target.result
 
@@ -397,12 +409,12 @@ function WIStatusListControl(htmlTagId) {
 		var dbVersion = 1
 
 		try {
-			dbOpenReq = window.indexedDB.open("webdc", {version: 1, storage: "permanent"})
+			dbOpenReq = window.indexedDB.open("webdc", { version: dbVersion, storage: "permanent" })
 		}
 		catch (e) {
 			if (e instanceof TypeError) {
 				try {
-					dbOpenReq = window.indexedDB.open("webdc", 1)
+					dbOpenReq = window.indexedDB.open("webdc", dbVersion)
 				}
 				catch (e) {
 					throw WIError(e.message)
@@ -417,7 +429,7 @@ function WIStatusListControl(htmlTagId) {
 			db = event.target.result
 
 			db.onerror = function(event) {
-				wiConsole.error("fdsnws.js: database error: " + event.target.errorCode)
+				wiConsole.error("fdsnws.js: IndexedDB error (errorCode=" + event.target.errorCode + ")")
 			}
 
 			// For browsers not supporting 'onupgradeneeded'

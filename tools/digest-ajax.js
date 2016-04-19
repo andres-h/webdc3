@@ -119,11 +119,11 @@
             type: 'GET'
         }, s);
 
-        var s_username = s.username
-        var s_password = s.password
+        var s_username = s.username;
+        var s_password = s.password;
 
-        delete s.username
-        delete s.password
+        delete s.username;
+        delete s.password;
 
         var dfd = $.Deferred();
         var promise = dfd.promise(doAjaxUnauthorized());
@@ -173,10 +173,7 @@
                     dfd.reject(jqXHR, textStatus, errorThrown);
                 });
 
-		promise.abort = function() {
-			xhr.abort();
-		}
-
+            promise.abort = xhr.abort;
             return xhr;
         }
 

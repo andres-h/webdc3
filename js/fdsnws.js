@@ -423,15 +423,10 @@ function FDSNWS_Control(htmlTagId) {
 		controlDiv.append(statusListDiv)
 	}
 
-	function createObjectStore(db) {
-		try {
-			db.createObjectStore("user")
-			db.createObjectStore("requests", { autoIncrement: true, keyPath: 'id' })
-			db.createObjectStore("blobs", { autoIncrement: true })
-		}
-		catch (e) {
-			wiConsole.error("fdsnws.js: " + e.message, e)
-		}
+	function createObjectStores(db) {
+		db.createObjectStore("user")
+		db.createObjectStore("requests", { autoIncrement: true, keyPath: 'id' })
+		db.createObjectStore("blobs", { autoIncrement: true })
 	}
 
 	function openDatabase(done, fail) {
@@ -476,7 +471,14 @@ function FDSNWS_Control(htmlTagId) {
 			if (db.setVersion) {
 				if (db.version != dbVersion) {
 					db.setVersion(dbVersion).onsuccess = function() {
-						createObjectStore(db)
+						try {
+							createObjectStore(db)
+						}
+						catch (e) {
+							wiConsole.error("fdsnws.js: " + e.message, e)
+							fail()
+							return
+						}
 					}
 				}
 			}
@@ -485,11 +487,18 @@ function FDSNWS_Control(htmlTagId) {
 		}
 
 		dbOpenReq.onupgradeneeded = function(event) {
-			createObjectStore(event.target.result)
+			try {
+				createObjectStores(event.target.result)
+			}
+			catch (e) {
+				wiConsole.error("fdsnws.js: " + e.message, e)
+				fail()
+			}
 		}
 
 		dbOpenReq.onerror = function(event) {
 			wiConsole.error("fdsnws.js: access to database denied")
+			fail()
 		}
 	}
 

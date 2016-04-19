@@ -134,7 +134,7 @@ function SubmitControl(htmlTagId) {
 		}
 
 		html += '<div id="sbtAuthDiv">';
-		html += "<div style='padding: 10px;' id='sbtAuthEmailDiv'></div>";
+		html += '<div style="padding: 10px;" id="sbtAuthEmailDiv"></div>';
 		html += '<div style="padding: 10px;" id="sbtAuthTokenDiv"></div>';
 		html += '</div>';
 		html += '</div>';
@@ -576,8 +576,10 @@ function SubmitControl(htmlTagId) {
 		submitinfo.request.requesttype = _controlDiv.find("#scType input:checked").val();
 		submitinfo.request.compressed = ( _controlDiv.find("#scCompress input:checked").val() === "yes" ) ? true : false ;
 		if (!submitinfo.request.user && submitinfo.request.requesttype != "MSEED-dataselect") {
-			alert("You need to supply your e-mail address to be able to send your request.");
 			_controlDiv.find("#scUser").addClass("wi-warn");
+			_controlDiv.find("#sbtAuthModeEmail").prop('checked', true);
+			_controlDiv.find("#sbtAuthModeEmail").change();
+			alert("You need to supply your e-mail address to be able to send your request.");
 			return;
 		};
 

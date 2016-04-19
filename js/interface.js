@@ -38,7 +38,12 @@ $(document).ready(function() {
 				$('#wi-ConsoleLabel').removeClass('wi-console-error-tab')
 			}
 			else if ($(item.target).val() == 'download') {
+				wiStatusQueryControl.checkCookie()
 				$('#wi-DownloadLabel').removeClass('wi-download-alert-tab')
+			}
+			else {
+				wiStatusQueryControl.clear()
+				wiStatusFullControl.clear()
 			}
 		})
 

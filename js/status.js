@@ -1004,6 +1004,11 @@ function WIStatusListControl(htmlTagId) {
 
 		var self = this
 
+		if (param.requesttype == "MSEED-dataselect") {
+			wiFDSNWS_Control.submitRequest(param)
+			return true
+		}
+
 		if (param.requesttype == "FSEED" || param.requesttype == "MSEED") {
 			if (!self.checkWaveformSize(param))
 				return false
@@ -1099,6 +1104,7 @@ function WIStatusListControl(htmlTagId) {
 
 	function setCallback(callback) {
 		_callback = callback
+		wiFDSNWS_Control.setCallback(callback)
 	}
 
 	this.resubmitFailFn = resubmitFailFn

@@ -11,12 +11,13 @@
 
 "use strict"
 
-function FDSNWS_Download(controlDiv, db, data, cbDownloadFinished) {
+function FDSNWS_Download(controlDiv, db, authToken, data, cbDownloadFinished) {
 	// Private
 	var pbarDiv = null
 	var n = -1
 	var stopped = true
-	var xhr = null
+	var handle = null
+	var cred = null
 
 	function buildControl() {
 		var popupDiv = $('<div class="wi-status-popup"/>').attr('title', data.url)
@@ -24,6 +25,7 @@ function FDSNWS_Download(controlDiv, db, data, cbDownloadFinished) {
 		var popupTable = $('<table/>')
 
 		pbarDiv = $('<div class="wi-status-full-group-buttons" style="cursor:pointer"/>').text(data.url)
+		pbarDiv.append(' - <span class="wi-download-counter">0</span>/' + data.params.length + ' time windows')
 		pbarDiv.progressbar().click(function() { popupDiv.dialog('open') })
 
 		popupBodyDiv.append(popupTable)
@@ -68,51 +70,93 @@ function FDSNWS_Download(controlDiv, db, data, cbDownloadFinished) {
 	function store(blob, id) {
 		var t = db.transaction(["blobs"], "readwrite")
 		t.objectStore("blobs").put(blob, id)
-		t.oncomplete = doPart
+		t.oncomplete = next
 		t.onerror = cbDownloadFinished
 	}
 
-	function fetch(p) {
+	function doAjax(ajax, url, p, username, password) {
 		var q = $.extend({}, p)
 		delete q['id']
 
-		// tmp
-		var url = data.url
-		if (url == "http://geofon.gfz-potsdam.de/fdsnws/dataselect/1/query")
-			url = "http://geofon-open2.gfz-potsdam.de/fdsnws/dataselect/1/query"
-
-		xhr = $.ajax({
+		handle = ajax({
 			method: 'GET',
 			url: url + '?' + $.param(q),
+			username: username,
+			password: password,
 			dataType: 'native',
 			processData: false,
 			xhrFields: {
 				responseType: 'arraybuffer'
-			},
-			success: function(data) {
-				if (xhr.status != 200)
-					data = new ArrayBuffer()
-
-				xhr = null
-
-				var blob = new Blob([data])
-
-				if (blob.size > 0)
-					status(p.id, 'OK', blob.size + ' bytes')
-				else
-					status(p.id, 'NODATA')
-					
-				store(blob, p.id)
-			},
-			error: function() {
-				xhr = null
-
-				if (!stopped)
-					status(p.id, 'ERROR')
-
-				doPart()
 			}
 		})
+
+		handle.done(function(data, textStatus, jqXHR) {
+			handle = null
+
+			if (jqXHR.status != 200)
+				data = new ArrayBuffer()
+
+			var blob = new Blob([data])
+
+			if (blob.size > 0)
+				status(p.id, 'OK', blob.size + ' bytes')
+			else
+				status(p.id, 'NODATA')
+
+			store(blob, p.id)
+		})
+
+		handle.fail(function(jqXHR) {
+			handle = null
+
+			if (jqXHR.status == 401) {
+				auth(p)
+				return
+			}
+
+			if (!stopped)
+				status(p.id, 'ERROR')
+
+			next()
+		})
+	}
+
+	function auth(p) {
+		var url = data.url.replace(/^http:/, 'https:').replace(/query$/, 'auth')
+
+		$.ajax({
+			type: 'POST',
+			url: url,
+			data: authToken,
+			contentType: 'text/plain',
+			dataType: 'text',
+			success: function(data) {
+				cred = data
+				fetch(p)
+			},
+			error: function() {
+				wiConsole.error("fdsnws.js: " + url + ": authentication failed")
+				authToken = null
+				cred = null
+				fetch(p)
+			}
+		})
+	}
+
+	function fetch(p) {
+		var url = data.url
+
+		if (authToken && !cred) {
+			auth(p)
+		}
+		else if (cred) {
+			var userpass = cred.split(':')
+			url = url.replace(/query$/, 'queryauth')
+			doAjax($.ajaxDigest, url, p, userpass[0], userpass[1])
+		}
+		else {
+			doAjax($.ajax, url, p)
+		}
 	}
 
 	function process(p) {
@@ -130,7 +174,7 @@ function FDSNWS_Download(controlDiv, db, data, cbDownloadFinished) {
 				else
 					status(p.id, 'NODATA')
 
-				doPart()
+				next()
 			}
 		}
 
@@ -138,13 +182,19 @@ function FDSNWS_Download(controlDiv, db, data, cbDownloadFinished) {
 			fetch(p)
 		}
 	}
-			
-	function doPart() {
+
+	function next() {
+		if (stopped) {
+			cbDownloadFinished()
+			return
+		}
+
 		++n
 
 		pbarDiv.progressbar('value', 100 * n / data.params.length)
+		pbarDiv.find('.wi-download-counter').text(n)
 
-		if (n < data.params.length && !stopped)
+		if (n < data.params.length)
 			process(data.params[n])
 		else
 			cbDownloadFinished()
@@ -153,14 +203,14 @@ function FDSNWS_Download(controlDiv, db, data, cbDownloadFinished) {
 	function start() {
 		n = -1
 		stopped = false
-		doPart()
+		next()
 	}
 
 	function stop() {
 		stopped = true
 
-		if (xhr != null)
-			xhr.abort()
+		if (handle != null)
+			handle.abort()
 	}
 
 	function getProduct(cbResult) {
@@ -197,7 +247,7 @@ function FDSNWS_Download(controlDiv, db, data, cbDownloadFinished) {
 	this.getProduct = getProduct
 }
 
-function FDSNWS_Request(controlDiv, db, filename) {
+function FDSNWS_Request(controlDiv, db, authToken, filename) {
 	// Private
 	var downloadsDiv = null
 	var stopButton = null
@@ -279,7 +329,7 @@ function FDSNWS_Request(controlDiv, db, filename) {
 		if (downloadsDiv.is(':empty')) {
 			$.each(data, function(i, d) {
 				var dlDiv = $('<div/>')
-				var dl = new FDSNWS_Download(dlDiv, db, d, cbDownloadFinished)
+				var dl = new FDSNWS_Download(dlDiv, db, authToken, d, cbDownloadFinished)
 				downloadsDiv.append(dlDiv)
 				downloads.push(dl)
 			})
@@ -359,12 +409,14 @@ function FDSNWS_Request(controlDiv, db, filename) {
 	this.load = load
 }
 
-function WIStatusListControl(htmlTagId) {
+function FDSNWS_Control(htmlTagId) {
 	// Private
 	var controlDiv = null
 	var statusListDiv = null
 	var callback = null
 	var db = null
+	var authToken = null
+	var authInfo = null
 
 	function buildControl() {
 		statusListDiv = $('<div class="wi-status-list-body"/>')
@@ -382,27 +434,11 @@ function WIStatusListControl(htmlTagId) {
 		}
 	}
 
-	function loadRequests() {
-		var t = db.transaction(["requests"])
-
-		t.objectStore("requests").openCursor().onsuccess = function(event) {
-			var cursor = event.target.result
-
-			if (cursor) {
-				var reqDiv = $('<div class="wi-status-full-group"/>')
-				var data = cursor.value
-				var req = new FDSNWS_Request(reqDiv, db, data.filename)
-				statusListDiv.append(reqDiv)
-				req.load(data)
-				req.start()
-				cursor.continue()
-			}
-		}
-	}
-
-	function openDatabase() {
+	function openDatabase(done, fail) {
 		if (!window.indexedDB) {
-			throw WIError("fdsnws.js: IndexedDB not supported by browser!")
+			wiConsole.error("fdsnws.js: IndexedDB not supported by browser!")
+			fail()
+			return
 		}
 
 		var dbOpenReq
@@ -417,11 +453,15 @@ function WIStatusListControl(htmlTagId) {
 					dbOpenReq = window.indexedDB.open("webdc", dbVersion)
 				}
 				catch (e) {
-					throw WIError(e.message)
+					wiConsole.error("fdsnws.js: " + e.message)
+					fail()
+					return
 				}
 			}
 			else {
-				throw WIError(e.message)
+				wiConsole.error("fdsnws.js: " + e.message)
+				fail()
+				return
 			}
 		}
 
@@ -441,7 +481,7 @@ function WIStatusListControl(htmlTagId) {
 				}
 			}
 
-			loadRequests()
+			done()
 		}
 
 		dbOpenReq.onupgradeneeded = function(event) {
@@ -453,18 +493,56 @@ function WIStatusListControl(htmlTagId) {
 		}
 	}
 
+	function loadAuthToken(done, fail) {
+		var t = db.transaction(["user"])
+
+		t.objectStore("user").get("auth").onsuccess = function(event) {
+			if (event.target.result) {
+				setAuthToken(event.target.result)
+			}
+		}
+
+		t.oncomplete = done
+		t.onerror = fail
+	}
+
+	function loadRequests(done, fail) {
+		var t = db.transaction(["requests"])
+
+		t.objectStore("requests").openCursor().onsuccess = function(event) {
+			var cursor = event.target.result
+
+			if (cursor) {
+				var reqDiv = $('<div class="wi-status-full-group"/>')
+				var data = cursor.value
+				var req = new FDSNWS_Request(reqDiv, db, authToken, data.filename)
+				statusListDiv.append(reqDiv)
+				req.load(data)
+				req.start()
+				cursor.continue()
+			}
+		}
+
+		t.oncomplete = done
+		t.onerror = fail
+	}
+
+	function init(done, fail) {
+		return openDatabase(function() { loadAuthToken(function() { loadRequests(done, fail) }, fail) }, fail)
+	}
+
 	function submitRequest(param) {
 		if (!controlDiv) return
 
 		var reqDiv = $('<div class="wi-status-full-group"/>')
 		var filename = param.description.replace(' ', '_') + '.mseed'
-		var req = new FDSNWS_Request(reqDiv, db, filename)
+		var req = new FDSNWS_Request(reqDiv, db, authToken, filename)
 		statusListDiv.append(reqDiv)
 		callback()
 
 		var timewindows = JSON.parse(param.timewindows)
 		var postData = 'format=json\n'
-		
+
 		$.each(timewindows, function(i, item) {
 			var start = item[0]
 			var end = item[1]
@@ -486,6 +564,12 @@ function WIStatusListControl(htmlTagId) {
 			contentType: 'text/plain',
 			dataType: 'json',
 			success: function(data) {
+				if (!data) {
+					wiConsole.error("fdsnws.js: no routes received")
+					reqDiv.remove()
+					return
+				}
+
 				data.filename = filename
 				req.load(data)
 				req.create()
@@ -496,12 +580,35 @@ function WIStatusListControl(htmlTagId) {
 			}
 		})
 	}
-				
+
 	function setCallback(cb) {
 		callback = cb
 	}
 
-	function setUser(u) {
+	function setAuthToken(tok) {
+		if (!tok) {
+			var t = db.transaction(["user"], "readwrite")
+			t.objectStore("user").delete("auth")
+			authToken = null
+			authInfo = null
+			return
+		}
+
+		try {
+			var text = openpgp.message.readArmored(tok).getText()
+			var auth = $.parseJSON(text)
+			var t = db.transaction(["user"], "readwrite")
+			t.objectStore("user").put(tok, "auth")
+			authToken = tok
+			authInfo = { userId: auth.mail, validUntil: new Date(auth.valid_until) }
+		}
+		catch(e) {
+			wiConsole.error("fdsnws.js: invalid auth token: " + e.message)
+		}
+	}
+
+	function getAuthInfo() {
+		return authInfo
 	}
 
 	// Load the object into the HTML page
@@ -513,15 +620,25 @@ function WIStatusListControl(htmlTagId) {
 	}
 
 	buildControl()
-	openDatabase()
 
 	// TODO: make configurable
 	var routerURL = '/eidaws/routing/1/query'
 
 	// Public interface
+	this.init = init
 	this.submitRequest = submitRequest
 	this.setCallback = setCallback
-	this.setUser = setUser
+	this.setAuthToken = setAuthToken
+	this.getAuthInfo = getAuthInfo
+}
+
+function FDSNWS_Dummy(htmlTagId) {
+	$(htmlTagId).parent().remove()
+
+	// Public interface
+	this.setCallback = function() {}
+	this.setAuthToken = function() {}
+	this.getAuthInfo = function() {}
 }
 
 /*
@@ -532,7 +649,18 @@ function WIStatusListControl(htmlTagId) {
  */
 $(document).ready(function(){
 	try {
-		window.wiStatusListControl = new WIStatusListControl("#wi-StatusListControl")
+		var fdsnws = new FDSNWS_Control("#wi-FDSNWS-Control")
+
+		wiConsole.info("fdsnws.js: initializing")
+
+		fdsnws.init(function() {
+			wiConsole.info("fdsnws.js: init successful")
+			window.wiFDSNWS_Control = fdsnws
+		},
+		function() {
+			wiConsole.info("fdsnws.js: init failed")
+			window.wiFDSNWS_Control = new FDSNWS_Dummy("#wi-FDSNWS-Control")
+		})
 
 	}
 	catch (e) {

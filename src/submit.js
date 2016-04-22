@@ -10,11 +10,6 @@
  */
 
 /*
- * Page wide variable to provides the submit to all modules.
- */
-var submitControl = undefined;
-
-/*
  * Implementation of the submitControl
  */
 function SubmitControl(htmlTagId) {
@@ -42,14 +37,14 @@ function SubmitControl(htmlTagId) {
 		if (value === "") return null;
 
 		value = Number(value);
-		
+
 		if (isNaN(value)) return null;
-	
+
 		if (min && value < min) return null;
 		if (max && value > max) return null;
-		
+
 		return value;
-	};
+	}
 
 	function seconds2time(seconds) {
 		var value = new Date("2010-01-01T00:00:00Z");
@@ -368,7 +363,7 @@ function SubmitControl(htmlTagId) {
 
 			var value = $(item.target).val();
 
-			if(value) {
+			if (value) {
 				$.cookie('scUser', value, { expires: 30 });
 			} else {
 				$.removeCookie('scUser');
@@ -382,11 +377,20 @@ function SubmitControl(htmlTagId) {
 			}
 		});
 
+		function resetTokenSelect(event) {
+			var div = _controlDiv.find("#scTokenSelect");
+			div.wrap('<form>').closest('form').get(0).reset();
+			div.unwrap();
+			event.stopPropagation();
+			event.preventDefault();
+		}
+
 		_controlDiv.find("#scTokenSelect").button().bind("change", function(event) {
 			var f = event.target.files[0];
 			var r = new FileReader();
 			r.readAsText(f);
 			r.onload = function(event) {
+				resetTokenSelect(event);
 				window.wiFDSNWS_Control.setAuthToken(event.target.result);
 				var authInfo = window.wiFDSNWS_Control.getAuthInfo();
 
@@ -394,6 +398,14 @@ function SubmitControl(htmlTagId) {
 					_controlDiv.find("#scAuthUser").text(authInfo.userId);
 					_controlDiv.find("#scAuthValid").text(authInfo.validUntil.toString());
 				}
+			};
+
+			r.onabort = function(event) {
+				resetTokenSelect(event);
+			}
+
+			r.onerror = function(event) {
+				resetTokenSelect(event);
 			}
 		})
 
@@ -402,12 +414,8 @@ function SubmitControl(htmlTagId) {
 		})
 
 		_controlDiv.find("#scTokenRemove").button().bind("click", function(event) {
+			resetTokenSelect(event);
 			wiFDSNWS_Control.setAuthToken(null);
-			var div = _controlDiv.find("#scTokenSelect");
-			div.wrap('<form>').closest('form').get(0).reset();
-			div.unwrap();
-			event.stopPropagation();
-			event.preventDefault();
 			_controlDiv.find("#scAuthUser").text("Anonymous");
 			_controlDiv.find("#scAuthValid").text("N/A");
 		})
@@ -496,9 +504,9 @@ function SubmitControl(htmlTagId) {
 		select.empty();
 		for(var key in data) {
 			html += '<option value='+ data[key][0] + '>' + data[key][1] + '</option>';
-		};
+		}
 		select.append(html);
-	};
+	}
 
 	function resetControl() {
 		if (!_controlDiv) return;
@@ -551,7 +559,7 @@ function SubmitControl(htmlTagId) {
 		_controlDiv.find("#sbtEndSlider").slider("value", 24 * 60 * 60 - 1);
 
 		_controlDiv.find("#sbtAuthModeEmail").click();
-		
+
 		/*
 		 * This would reload the phase list & Request type
 		 */
@@ -581,7 +589,7 @@ function SubmitControl(htmlTagId) {
 			_controlDiv.find("#sbtAuthModeEmail").change();
 			alert("You need to supply your e-mail address to be able to send your request.");
 			return;
-		};
+		}
 
 		// Load in values
 		if (submitinfo.mode === "Absolute") {
@@ -605,7 +613,7 @@ function SubmitControl(htmlTagId) {
 
 		// Associate
 		requestControl.submit(submitinfo);
-	};
+	}
 
 	function load(htmlTagId) {
 		var control = $(htmlTagId);
@@ -621,10 +629,10 @@ function SubmitControl(htmlTagId) {
 
 		// build the interface
 		buildControl();
-		
+
 		// Reset
 		resetControl();
-	};
+	}
 
 	// Public
 
@@ -632,14 +640,22 @@ function SubmitControl(htmlTagId) {
 	load(htmlTagId);
 }
 
-$(document).ready(function() {
-	try {
-		submitControl = new SubmitControl("#wi-SubmitControl");
-	}
-	catch (e) {
-		if (console.error !== wiConsole.error)
-			console.error("submit.js: " + e.message);
+/*
+ * Export for main.js
+ */
+export default function() {
+	return new Promise(function(resolve, reject) {
+		try {
+			window.submitControl = new SubmitControl("#wi-SubmitControl");
+			resolve();
+		}
+		catch (e) {
+			if (console.error !== wiConsole.error)
+				console.error("submit.js: " + e.message);
 
-		wiConsole.error("submit.js: " + e.message, e);
-	}
-});
+			wiConsole.error("submit.js: " + e.message, e);
+			reject();
+		}
+	});
+}
+

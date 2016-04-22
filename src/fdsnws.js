@@ -9,8 +9,6 @@
  *
  */
 
-"use strict"
-
 function FDSNWS_Download(controlDiv, db, authToken, data, cbDownloadFinished) {
 	// Private
 	var pbarDiv = null
@@ -124,22 +122,29 @@ function FDSNWS_Download(controlDiv, db, authToken, data, cbDownloadFinished) {
 	function auth(p) {
 		var url = data.url.replace(/^http:/, 'https:').replace(/query$/, 'auth')
 
-		$.ajax({
+		handle = $.ajax({
 			type: 'POST',
 			url: url,
 			data: authToken,
 			contentType: 'text/plain',
-			dataType: 'text',
-			success: function(data) {
-				cred = data
-				fetch(p)
-			},
-			error: function() {
-				wiConsole.error("fdsnws.js: " + url + ": authentication failed")
-				authToken = null
-				cred = null
-				fetch(p)
+			dataType: 'text'
+		})
+
+		handle.done(function(data) {
+			cred = data
+			fetch(p)
+		})
+
+		handle.fail(function() {
+			if (stopped) {
+				cbDownloadFinished()
+				return
 			}
+
+			wiConsole.error("fdsnws.js: " + url + ": authentication failed")
+			authToken = null
+			cred = null
+			fetch(p)
 		})
 	}
 
@@ -429,115 +434,113 @@ function FDSNWS_Control(htmlTagId) {
 		db.createObjectStore("blobs", { autoIncrement: true })
 	}
 
-	function openDatabase(done, fail) {
-		if (!window.indexedDB) {
-			wiConsole.error("fdsnws.js: IndexedDB not supported by browser!")
-			fail()
-			return
-		}
+	function openDatabase() {
+		return new Promise(function(resolve, reject) {
+			if (!window.indexedDB) {
+				wiConsole.error("fdsnws.js: IndexedDB is not supported by browser")
+				reject()
+			}
 
-		var dbOpenReq
-		var dbVersion = 1
+			var dbOpenReq
+			var dbVersion = 1
 
-		try {
-			dbOpenReq = window.indexedDB.open("webdc", { version: dbVersion, storage: "persistent" })
-		}
-		catch (e) {
-			if (e instanceof TypeError) {
-				try {
-					dbOpenReq = window.indexedDB.open("webdc", dbVersion)
+			try {
+				dbOpenReq = window.indexedDB.open("webdc", { version: dbVersion, storage: "persistent" })
+			}
+			catch (e) {
+				if (e instanceof TypeError) {
+					try {
+						dbOpenReq = window.indexedDB.open("webdc", dbVersion)
+					}
+					catch (e) {
+						reject(e)
+					}
 				}
-				catch (e) {
-					wiConsole.error("fdsnws.js: " + e.message)
-					fail()
-					return
+				else {
+					reject(e)
 				}
 			}
-			else {
-				wiConsole.error("fdsnws.js: " + e.message)
-				fail()
-				return
-			}
-		}
 
-		dbOpenReq.onsuccess = function(event) {
-			db = event.target.result
+			dbOpenReq.onsuccess = function(event) {
+				db = event.target.result
 
-			db.onerror = function(event) {
-				wiConsole.error("fdsnws.js: IndexedDB error (errorCode=" + event.target.errorCode + ")")
-			}
+				db.onerror = function(event) {
+					wiConsole.error("fdsnws.js: IndexedDB error (errorCode=" + event.target.errorCode + ")")
+				}
 
-			// For browsers not supporting 'onupgradeneeded'
-			if (db.setVersion) {
-				if (db.version != dbVersion) {
-					db.setVersion(dbVersion).onsuccess = function() {
-						try {
-							createObjectStore(db)
-						}
-						catch (e) {
-							wiConsole.error("fdsnws.js: " + e.message, e)
-							fail()
-							return
+				// For browsers not supporting 'onupgradeneeded'
+				if (db.setVersion) {
+					if (db.version != dbVersion) {
+						db.setVersion(dbVersion).onsuccess = function() {
+							try {
+								createObjectStore(db)
+							}
+							catch (e) {
+								reject(e)
+							}
 						}
 					}
 				}
+
+				resolve()
 			}
 
-			done()
-		}
-
-		dbOpenReq.onupgradeneeded = function(event) {
-			try {
-				createObjectStores(event.target.result)
+			dbOpenReq.onupgradeneeded = function(event) {
+				try {
+					createObjectStores(event.target.result)
+				}
+				catch (e) {
+					reject(e)
+				}
 			}
-			catch (e) {
-				wiConsole.error("fdsnws.js: " + e.message, e)
-				fail()
-			}
-		}
 
-		dbOpenReq.onerror = function(event) {
-			wiConsole.error("fdsnws.js: access to database denied")
-			fail()
-		}
+			dbOpenReq.onerror = function(event) {
+				wiConsole.error("fdsnws.js: access to database denied")
+				reject()
+			}
+		})
 	}
 
-	function loadAuthToken(done, fail) {
-		var t = db.transaction(["user"])
+	function loadAuthToken() {
+		return new Promise(function(resolve, reject) {
+			var t = db.transaction(["user"])
 
-		t.objectStore("user").get("auth").onsuccess = function(event) {
-			if (event.target.result) {
-				setAuthToken(event.target.result)
+			t.objectStore("user").get("auth").onsuccess = function(event) {
+				if (event.target.result) {
+					setAuthToken(event.target.result)
+				}
 			}
-		}
 
-		t.oncomplete = done
-		t.onerror = fail
+			t.oncomplete = resolve
+			t.onerror = reject
+		})
 	}
 
 	function loadRequests(done, fail) {
-		var t = db.transaction(["requests"])
+		return new Promise(function(resolve, reject) {
+			var t = db.transaction(["requests"])
 
-		t.objectStore("requests").openCursor().onsuccess = function(event) {
-			var cursor = event.target.result
+			t.objectStore("requests").openCursor().onsuccess = function(event) {
+				var cursor = event.target.result
 
-			if (cursor) {
-				var reqDiv = $('<div class="wi-status-full-group"/>')
-				var data = cursor.value
-				var req = new FDSNWS_Request(reqDiv, db, authToken, data.filename)
-				statusListDiv.append(reqDiv)
-				req.load(data)
-				req.start()
-				cursor.continue()
+				if (cursor) {
+					var reqDiv = $('<div class="wi-status-full-group"/>')
+					var data = cursor.value
+					var req = new FDSNWS_Request(reqDiv, db, authToken, data.filename)
+					statusListDiv.append(reqDiv)
+					req.load(data)
+					req.start()
+					cursor.continue()
+				}
 			}
-		}
 
-		t.oncomplete = done
-		t.onerror = fail
+			t.oncomplete = resolve
+			t.onerror = reject
+		})
 	}
 
-	function init(done, fail) {
-		return openDatabase(function() { loadAuthToken(function() { loadRequests(done, fail) }, fail) }, fail)
+	function init() {
+		return openDatabase().then(loadAuthToken).then(loadRequests)
 	}
 
 	function submitRequest(param) {
@@ -605,6 +608,12 @@ function FDSNWS_Control(htmlTagId) {
 
 		try {
 			var text = openpgp.message.readArmored(tok).getText()
+
+			if (!text) {
+				wiConsole.error("fdsnws.js: invalid auth token: No auth data")
+				return
+			}
+
 			var auth = $.parseJSON(text)
 			var t = db.transaction(["user"], "readwrite")
 			t.objectStore("user").put(tok, "auth")
@@ -651,32 +660,38 @@ function FDSNWS_Dummy(htmlTagId) {
 }
 
 /*
- * Bind the creation of controls to the document.ready method so that they are
- * automatically loaded when this JS file is imported (by the loader).
- * Note that in javascript "strict mode" we have to use "window" rather than
- * just create a global variable.
+ * Export for main.js
  */
-$(document).ready(function(){
-	try {
-		var fdsnws = new FDSNWS_Control("#wi-FDSNWS-Control")
+export default function() {
+	return new Promise(function(resolve, reject) {
+		try {
+			var fdsnws = new FDSNWS_Control("#wi-FDSNWS-Control")
 
-		wiConsole.info("fdsnws.js: initializing")
+			wiConsole.info("fdsnws.js: initializing")
 
-		fdsnws.init(function() {
-			wiConsole.info("fdsnws.js: init successful")
-			window.wiFDSNWS_Control = fdsnws
-		},
-		function() {
-			wiConsole.info("fdsnws.js: init failed")
-			window.wiFDSNWS_Control = new FDSNWS_Dummy("#wi-FDSNWS-Control")
-		})
+			fdsnws.init()
+			.then(function() {
+				wiConsole.info("fdsnws.js: init successful")
+				window.wiFDSNWS_Control = fdsnws
+				resolve()
+			})
+			.catch(function(e) {
+				if (e instanceof Error)
+					wiConsole.error("fdsnws.js: " + e.message, e)
 
-	}
-	catch (e) {
-		if (console.error !== wiConsole.error)
-			console.error("fdsnws.js: " + e.message)
+				wiConsole.info("fdsnws.js: init failed")
+				window.wiFDSNWS_Control = new FDSNWS_Dummy("#wi-FDSNWS-Control")
+				resolve()
+			})
 
-		wiConsole.error("fdsnws.js: " + e.message, e)
-	}
-})
+		}
+		catch (e) {
+			if (console.error !== wiConsole.error)
+				console.error("fdsnws.js: " + e.message)
+
+			wiConsole.error("fdsnws.js: " + e.message, e)
+			reject()
+		}
+	})
+}
 

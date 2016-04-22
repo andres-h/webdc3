@@ -28,12 +28,12 @@ class WI_Module(object):
 
         # Create the variables that are returned in Javascript format based on the
         # information of the environment.
-        body.append("var eidaJSSource='%s';"  % (os.path.dirname(envir['SCRIPT_NAME']) + '/js'))
-        body.append("var eidaCSSSource='%s';" % (os.path.dirname(envir['SCRIPT_NAME']) + '/css'))
-        body.append("var eidaServiceRoot='%s';" % (envir['SCRIPT_NAME']))
+        body.append("window.eidaJSSource='%s';"  % (os.path.dirname(envir['SCRIPT_NAME']) + '/js'))
+        body.append("window.eidaCSSSource='%s';" % (os.path.dirname(envir['SCRIPT_NAME']) + '/css'))
+        body.append("window.eidaServiceRoot='%s';" % (envir['SCRIPT_NAME']))
         debug = ( "true" if self.__wi.getConfigInt('DEBUG', 0) == 1 else "false" )
-        body.append("var eidaDebug=" + debug + ";")
-        body.append("$(document).ready(function() { $.getScript(eidaJSSource + '/loader.js') });")
+        body.append("window.eidaDebug=" + debug + ";")
+        body.append("$(document).ready(function() { $.getScript(eidaJSSource + '/webdc3.min.js') });")
 
         return body
 

@@ -9,8 +9,6 @@
  *
  */
 
-"use strict"
-
 /*
  * Implementation of the wiStatusQueryControl
  */
@@ -1136,25 +1134,26 @@ function WIStatusListControl(htmlTagId) {
 WIStatusListControl.prototype = new WIStatusBase
 
 /*
- * Bind the creation of controls to the document.ready method so that they are
- * automatically loaded when this JS file is imported (by the loader).
- * Note that in javascript "strict mode" we have to use "window" rather than
- * just create a global variable.
+ * Export for main.js
  */
-$(document).ready(function(){
-	try {
-		window.wiStatusQueryControl = new WIStatusQueryControl("#wi-StatusQueryControl")
-		window.wiStatusFullControl = new WIStatusFullControl("#wi-StatusFullControl")
-		window.wiStatusListControl = new WIStatusListControl("#wi-StatusListControl")
+export default function() {
+	return new Promise(function(resolve, reject) {
+		try {
+			window.wiStatusQueryControl = new WIStatusQueryControl("#wi-StatusQueryControl")
+			window.wiStatusFullControl = new WIStatusFullControl("#wi-StatusFullControl")
+			window.wiStatusListControl = new WIStatusListControl("#wi-StatusListControl")
 
-		// Add hidden download frame, so clicking on download links will not cancel AJAX requests
-		$(document.body).append('<iframe name="wi-DownloadFrame" style="display: none"/>')
-	}
-	catch (e) {
-		if (console.error !== wiConsole.error)
-			console.error("status.js: " + e.message)
+			// Add hidden download frame, so clicking on download links will not cancel AJAX requests
+			$(document.body).append('<iframe name="wi-DownloadFrame" style="display: none"/>')
+			resolve()
+		}
+		catch (e) {
+			if (console.error !== wiConsole.error)
+				console.error("status.js: " + e.message)
 
-		wiConsole.error("status.js: " + e.message, e)
-	}
-})
+			wiConsole.error("status.js: " + e.message, e)
+			reject()
+		}
+	})
+}
 

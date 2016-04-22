@@ -92,7 +92,7 @@ function FDSNWS_Download(controlDiv, db, authToken, data, cbDownloadFinished) {
 			handle = null
 
 			if (jqXHR.status != 200)
-				data = new ArrayBuffer()
+				data = new ArrayBuffer(0)
 
 			var blob = new Blob([data])
 

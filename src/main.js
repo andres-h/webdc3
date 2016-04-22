@@ -1,22 +1,22 @@
 /*
  * WebDC 3
  *
- * (C) 2013–2016 Helmoltz-Zentrum Potsdam - Deutsches GeoForschungsZentrum GFZ
+ * (C) 2013-2016 Helmoltz-Zentrum Potsdam - Deutsches GeoForschungsZentrum GFZ
  *
  */
 
-import startConsole from './console'
-import startConfig from './config'
-import startMapping from './mapping'
-import startService from './service'
-import startFdsnws from './fdsnws'
-import startStatus from './status'
-import startRequest from './request'
-import startEvents from './events'
-import startStation from './station'
-import startSubmit from './submit'
-import startReview from './review'
-import startInterface from './interface'
+import initConsole from './console'
+import initConfig from './config'
+import initMapping from './mapping'
+import initService from './service'
+import initFdsnws from './fdsnws'
+import initStatus from './status'
+import initRequest from './request'
+import initEvents from './events'
+import initStation from './station'
+import initSubmit from './submit'
+import initReview from './review'
+import initInterface from './interface'
 
 var VERSION = "0.8 (2016.114)"
 
@@ -36,21 +36,21 @@ window.interfaceLoader = new function() {
 }
 
 $(document).ready(function() {
-	startConsole()
+	initConsole()
 	.then(function() {
 		wiConsole.info("Loading webinterface v" + VERSION + "...")
 	})
-	.then(startConfig)
-	.then(startMapping)
-	.then(startService)
-	.then(startFdsnws)
-	.then(startStatus)
-	.then(startRequest)
-	.then(startEvents)
-	.then(startStation)
-	.then(startSubmit)
-	.then(startReview)
-	.then(startInterface)
+	.then(initConfig)
+	.then(initMapping)
+	.then(initService)
+	.then(initFdsnws)
+	.then(initStatus)
+	.then(initRequest)
+	.then(initEvents)
+	.then(initStation)
+	.then(initSubmit)
+	.then(initReview)
+	.then(initInterface)
 	.then(function() {
 		wiConsole.info("Ready.")
 	})

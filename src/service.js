@@ -341,8 +341,17 @@ function WIService() {
  */
 export default function() {
 	return new Promise(function(resolve, reject) {
-		window.wiService = new WIService()
-		resolve()
+		try {
+			window.wiService = new WIService()
+			resolve()
+		}
+		catch (e) {
+			if (console.error !== wiConsole.error)
+				console.error("service.js: " + e.message)
+
+			wiConsole.error("service.js: " + e.message, e)
+			reject()
+		}
 	})
 }
 

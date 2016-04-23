@@ -418,7 +418,7 @@ function EventSearchControl(htmlTagId) {
 		}, null, true, format, columns, input);
 
 		var br = "\n"; // "<br>";
-		msg = "OK, params are:" + br;
+		var msg = "OK, params are:" + br;
 		msg += " format: '" + format + "'" + br;
 		msg += " columns: '" + columns + "'" + br;
 		msg += " input: '" + input + "'" + br;
@@ -540,10 +540,10 @@ function EventSearchControl(htmlTagId) {
 			buttons: {
 				Send: function() {
 				    alert("Thank you, your upload is being checked.");
-				    result = parseUserCatalog();
+				    var result = parseUserCatalog();
 				    console.log("parseUserCatalog: " + result.message);
 				    if (result.header !== undefined) {
-					text = "Format: " + result.header;
+					var text = "Format: " + result.header;
 					$("body").find("#escCatalogHeader").empty().append(text);
 				    }
 				},

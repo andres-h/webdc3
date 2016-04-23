@@ -22,6 +22,7 @@ function ConfigurationProxy(url) {
 		return new Promise(function(resolve, reject) {
 			if (_url === undefined) {
 				reject(new Error("server URL is not defined"));
+				return;
 			}
 
 			_cache = {};

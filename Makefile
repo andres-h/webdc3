@@ -7,11 +7,11 @@ all: js/webdc3.min.js documentation
 .PHONY: all clean documentation gitcheck release test demo
 
 # sudo {zypper|apt-get|yum} install npm
-# npm install babel-cli babel-preset-es2015 babelify browserify
+# npm install browserify babelify babel-preset-es2015
 # PATH=~/node_modules/.bin:$PATH
 js/webdc3.min.js: src/*
 	mkdir -p js
-	browserify --entry src/main.js --transform [ babelify --presets es2015 --no-comments --minified ] --standalone webdc -o $@
+	browserify --entry src/main.js --transform [ babelify --presets es2015 --no-comments --minified ] --outfile $@
 
 clean:
 	(cd doc ; make clean)

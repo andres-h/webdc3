@@ -417,9 +417,8 @@ function FDSNWS_Request(controlDiv, db, authToken, filename) {
 	this.load = load
 }
 
-function FDSNWS_Control(htmlTagId) {
+function FDSNWS_Control(controlDiv) {
 	// Private
-	var controlDiv = null
 	var statusListDiv = null
 	var callback = null
 	var db = null
@@ -442,6 +441,7 @@ function FDSNWS_Control(htmlTagId) {
 			if (!window.indexedDB) {
 				wiConsole.error("fdsnws.js: IndexedDB is not supported by browser")
 				reject()
+				return
 			}
 
 			var dbOpenReq
@@ -457,10 +457,12 @@ function FDSNWS_Control(htmlTagId) {
 					}
 					catch (e) {
 						reject(e)
+						return
 					}
 				}
 				else {
 					reject(e)
+					return
 				}
 			}
 
@@ -547,8 +549,6 @@ function FDSNWS_Control(htmlTagId) {
 	}
 
 	function submitRequest(param) {
-		if (!controlDiv) return
-
 		var reqDiv = $('<div class="wi-status-full-group"/>')
 		var filename = param.description.replace(' ', '_') + '.mseed'
 		var req = new FDSNWS_Request(reqDiv, db, authToken, filename)
@@ -632,14 +632,6 @@ function FDSNWS_Control(htmlTagId) {
 		return authInfo
 	}
 
-	// Load the object into the HTML page
-	controlDiv = $(htmlTagId)
-
-	if (controlDiv.length !== 1) {
-		if (interfaceLoader.debug()) console.error("fdsnws.js: Cannot find a div with class '" + htmlTagId + "'")
-		return
-	}
-
 	buildControl()
 
 	// TODO: make configurable
@@ -653,9 +645,7 @@ function FDSNWS_Control(htmlTagId) {
 	this.getAuthInfo = getAuthInfo
 }
 
-function FDSNWS_Dummy(htmlTagId) {
-	$(htmlTagId).parent().remove()
-
+function FDSNWS_Dummy() {
 	// Public interface
 	this.setCallback = function() {}
 	this.setAuthToken = function() {}
@@ -668,10 +658,17 @@ function FDSNWS_Dummy(htmlTagId) {
 export default function() {
 	return new Promise(function(resolve, reject) {
 		try {
-			var fdsnws = new FDSNWS_Control("#wi-FDSNWS-Control")
+			var div = $('#wi-FDSNWS-Control')
+
+			if (!div.length) {
+				window.wiFDSNWS_Control = new FDSNWS_Dummy()
+				resolve()
+				return
+			}
+
+			var fdsnws = new FDSNWS_Control(div)
 
 			wiConsole.info("fdsnws.js: initializing")
-
 			fdsnws.init()
 			.then(function() {
 				wiConsole.info("fdsnws.js: init successful")
@@ -683,7 +680,8 @@ export default function() {
 					wiConsole.error("fdsnws.js: " + e.message, e)
 
 				wiConsole.info("fdsnws.js: init failed")
-				window.wiFDSNWS_Control = new FDSNWS_Dummy("#wi-FDSNWS-Control")
+				div.parent().remove()
+				window.wiFDSNWS_Control = new FDSNWS_Dummy()
 				resolve()
 			})
 

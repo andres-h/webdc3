@@ -50,7 +50,7 @@ function WIConsole(htmlTagId) {
 		msgDiv.text(msg)
 		_controlDiv.append(msgDiv)
 
-		if (exc !== undefined && printStackTrace !== undefined) {
+		if (typeof exc != 'undefined' && typeof printStackTrace != 'undefined') {
 			var trace = printStackTrace({e: exc})
 
 			for (var i in trace) {
@@ -258,18 +258,18 @@ export default function() {
 			if (window.console.error === undefined)
 				window.console.error = wiConsole.error
 
+			window.onerror = function(errorMsg, url, lineNumber) {
+				if (interfaceLoader.debug())
+					window.wiConsole.error(errorMsg + ' (' + url + ':' + lineNumber + ')')
+				else
+					window.wiConsole.error(errorMsg)
+			}
+
 			resolve()
 		}
 		catch (e) {
 			alert("console.js: " + e.message)
 			reject()
-		}
-
-		window.onerror = function(errorMsg, url, lineNumber) {
-			if (interfaceLoader.debug())
-				window.wiConsole.error(errorMsg + ' (' + url + ':' + lineNumber + ')')
-			else
-				window.wiConsole.error(errorMsg)
 		}
 	})
 }

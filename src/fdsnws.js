@@ -131,11 +131,14 @@ function FDSNWS_Download(controlDiv, db, authToken, data, cbDownloadFinished) {
 		})
 
 		handle.done(function(data) {
+			handle = null
 			cred = data
 			fetch(p)
 		})
 
 		handle.fail(function() {
+			handle = null
+
 			if (stopped) {
 				cbDownloadFinished()
 				return

@@ -263,7 +263,6 @@ function FDSNWS_Request(controlDiv, db, authToken, filename) {
 	var saveButton = null
 	var deleteButton = null
 	var data = null
-	var url = null
 	var downloads = []
 	var finished = 0
 
@@ -277,8 +276,8 @@ function FDSNWS_Request(controlDiv, db, authToken, filename) {
 		stopButton = $('<input class="wi-inline" type="button" value="Stop"/>')
 		stopButton.button({disabled: true}).click(function() { stop() })
 
-		saveButton = $('<input class="wi-inline" type="button" value="Save"/>')
-		saveButton.button({disabled: true}).click(function() { window.location.href = url })
+		saveButton = $('<a class="wi-inline" type="button" target="wi-DownloadFrame">Save</a>')
+		saveButton.button({disabled: true})
 
 		deleteButton = $('<input class="wi-inline" type="button" value="Delete"/>')
 		deleteButton.button({disabled: true}).click(function() { purge() })
@@ -297,7 +296,7 @@ function FDSNWS_Request(controlDiv, db, authToken, filename) {
 
 	function deliverProduct(blobs) {
 		var file = new File(blobs, filename, { type: "application/vnd.fdsn.mseed" })
-		url = URL.createObjectURL(file)
+		var url = URL.createObjectURL(file)
 		saveButton.attr('href', url)
 		startButton.button('enable')
 		stopButton.button('disable')
@@ -329,9 +328,9 @@ function FDSNWS_Request(controlDiv, db, authToken, filename) {
 		saveButton.button('disable')
 		deleteButton.button('disable')
 
-		if (url != null) {
-			URL.revokeObjectURL(url)
-			url = null
+		if (saveButton.attr('href')) {
+			URL.revokeObjectURL(saveButton.attr('href'))
+			saveButton.removeAttr('href')
 		}
 
 		if (downloadsDiv.is(':empty')) {
@@ -359,9 +358,9 @@ function FDSNWS_Request(controlDiv, db, authToken, filename) {
 	function purge() {
 		controlDiv.remove()
 
-		if (url != null) {
-			URL.revokeObjectURL(url)
-			url = null
+		if (saveButton.attr('href')) {
+			URL.revokeObjectURL(saveButton.attr('href'))
+			saveButton.removeAttr('href')
 		}
 
 		var t = db.transaction(["blobs"], "readwrite")

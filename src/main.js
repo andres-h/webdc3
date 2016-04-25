@@ -18,7 +18,7 @@ import initSubmit from './submit'
 import initReview from './review'
 import initInterface from './interface'
 
-var VERSION = "1.1 (2016.114)"
+var VERSION = "1.1 (2016.115)"
 
 window.WIError = function(message) {
 	this.name = undefined // omit exception name on the console
@@ -26,7 +26,7 @@ window.WIError = function(message) {
 	this.toString = function() { return this.message }
 }
 
-window.WIError.prototype = new Error;
+window.WIError.prototype = new Error
 
 // The modules use interfaceLoader.debug(), so add this for compatibility.
 window.interfaceLoader = new function() {

@@ -9,26 +9,39 @@
  *
  */
 
-function FDSNWS_Download(controlDiv, db, authToken, data, cbDownloadFinished) {
+function FDSNWS_Download(controlDiv, db, authToken, data, options, bulk, merge, contentType, filename, cbDownloadFinished) {
 	// Private
 	var pbarDiv = null
-	var n = -1
-	var stopped = true
+	var saveButton = null
 	var handle = null
 	var cred = null
+	var stopped = true
+	var n = 0
 
 	function buildControl() {
+		var pbarWrapperDiv = $('<div class="wi-status-full-group-buttons"/>')
 		var popupDiv = $('<div class="wi-status-popup"/>').attr('title', data.url)
 		var popupBodyDiv = $('<div class="wi-status-popup-group-body"/>')
 		var popupTable = $('<table/>')
 
-		pbarDiv = $('<div class="wi-status-full-group-buttons" style="cursor:pointer"/>').text(data.url)
-		pbarDiv.append(' - <span class="wi-download-counter">0</span>/' + data.params.length + ' time windows')
+		pbarDiv = $('<div style="cursor:pointer"/>')
+		pbarDiv.append($('<div class="wi-progress-label"/>').text(data.url).append(' - <span class="wi-download-counter">0</span>/' + data.params.length + ' time windows'))
 		pbarDiv.progressbar().click(function() { popupDiv.dialog('open') })
+		pbarWrapperDiv.append(pbarDiv)
+
+		if (!merge) {
+			var pbarButtonDiv = $('<div style="float:right"/>')
+			pbarDiv.css('width', '86%').css('float', 'left')
+			saveButton = $('<a class="wi-inline" type="button">Save</a>')
+			saveButton.button({disabled: true})
+			pbarButtonDiv.append(saveButton)
+			pbarWrapperDiv.append(pbarButtonDiv)
+			pbarWrapperDiv.append('<div style="clear:both"/>')
+		}
 
 		popupBodyDiv.append(popupTable)
 		popupDiv.append(popupBodyDiv)
-		controlDiv.append(pbarDiv)
+		controlDiv.append(pbarWrapperDiv)
 		controlDiv.append(popupDiv)
 
 		popupDiv.dialog({ autoOpen: false, modal: true, width: 600 })
@@ -45,6 +58,13 @@ function FDSNWS_Download(controlDiv, db, authToken, data, cbDownloadFinished) {
 			row.append($('<td class="wi-download-status-text"\>'))
 			popupTable.append(row)
 		})
+	}
+
+	function store(blob, id) {
+		var t = db.transaction(["blobs"], "readwrite")
+		t.objectStore("blobs").put(blob, id)
+		t.oncomplete = next
+		t.onerror = cbDownloadFinished
 	}
 
 	function status(id, code, text) {
@@ -65,11 +85,83 @@ function FDSNWS_Download(controlDiv, db, authToken, data, cbDownloadFinished) {
 			tdtext.text(text)
 	}
 
-	function store(blob, id) {
-		var t = db.transaction(["blobs"], "readwrite")
-		t.objectStore("blobs").put(blob, id)
-		t.oncomplete = next
-		t.onerror = cbDownloadFinished
+	function statusBulk(code, text) {
+		$.each(data.params, function(i, p) {
+			status(p.id, code, text)
+		})
+	}
+
+	function fetchBulk() {
+		var postData = ''
+
+		$.each(Object.keys(options), function(i, k) {
+			postData += k + '=' + options[k] + '\n'
+		})
+
+		$.each(data.params, function(i, p) {
+			postData += p.net + ' ' + p.sta + ' ' + p.loc + ' ' + p.cha + ' ' + p.start + ' ' + p.end + '\n'
+		})
+
+		handle = $.ajax({
+			method: 'POST',
+			url: data.url,
+			data: postData,
+			contentType: 'text/plain',
+			dataType: 'native',
+			processData: false,
+			xhrFields: {
+				responseType: 'arraybuffer'
+			}
+		})
+
+		handle.done(function(buf, textStatus, jqXHR) {
+			handle = null
+
+			if (jqXHR.status != 200)
+				buf = new ArrayBuffer(0)
+
+			var blob = new Blob([buf])
+
+			if (blob.size > 0)
+				statusBulk('OK')
+			else
+				statusBulk('NODATA')
+
+			store(blob, data.id)
+		})
+
+		handle.fail(function(jqXHR) {
+			handle = null
+
+			if (!stopped)
+				statusBulk('ERROR')
+
+			next()
+		})
+	}
+
+	function processBulk() {
+		var t = db.transaction(["blobs"])
+
+		t.objectStore("blobs").get(data.id).onsuccess = function(event) {
+			var blob = event.target.result
+
+			if (blob == null) {
+				fetchBulk()
+			}
+			else {
+				if (blob.size > 0)
+					statusBulk('OK')
+				else
+					statusBulk('NODATA')
+
+				next()
+			}
+		}
+
+		t.onerror = function(event) {
+			fetchBulk(p)
+		}
 	}
 
 	function doAjax(ajax, url, p, username, password) {
@@ -88,13 +180,13 @@ function FDSNWS_Download(controlDiv, db, authToken, data, cbDownloadFinished) {
 			}
 		})
 
-		handle.done(function(data, textStatus, jqXHR) {
+		handle.done(function(buf, textStatus, jqXHR) {
 			handle = null
 
 			if (jqXHR.status != 200)
-				data = new ArrayBuffer(0)
+				buf = new ArrayBuffer(0)
 
-			var blob = new Blob([data])
+			var blob = new Blob([buf])
 
 			if (blob.size > 0)
 				status(p.id, 'OK', blob.size + ' bytes')
@@ -191,26 +283,99 @@ function FDSNWS_Download(controlDiv, db, authToken, data, cbDownloadFinished) {
 		}
 	}
 
-	function next() {
-		if (stopped) {
-			cbDownloadFinished()
-			return
+	function getProduct(cbResult) {
+		if (bulk) {
+			var t = db.transaction(["blobs"])
+
+			t.objectStore("blobs").get(data.id).onsuccess = function(event) {
+				var blob = event.target.result
+
+				if (blob != null)
+					cbResult(blob)
+				else
+					cbResult(new Blob([]))
+			}
+
+			t.onerror = function(event) {
+				cbResult(new Blob([]))
+			}
+		}
+		else {
+			var parts = [];
+
+			(function addPart(i) {
+				if (i < n) {
+					var t = db.transaction(["blobs"])
+
+					t.objectStore("blobs").get(data.params[i].id).onsuccess = function(event) {
+						var blob = event.target.result
+
+						if (blob != null)
+							parts.push(blob)
+
+						addPart(i+1)
+					}
+
+					t.onerror = function(event) {
+						addPart(i+1)
+					}
+				}
+				else {
+					cbResult(new Blob(parts))
+				}
+			})(0)
+		}
+	}
+
+	function deliverProduct(blob) {
+		if (blob.size > 0) {
+			var file = new File([blob], filename, { type: contentType })
+			var url = URL.createObjectURL(file)
+			saveButton.attr('href', url)
+			saveButton.attr('download', filename)
+			saveButton.button('enable')
 		}
 
-		++n
+		cbDownloadFinished()
+	}
 
-		pbarDiv.progressbar('value', 100 * n / data.params.length)
-		pbarDiv.find('.wi-download-counter').text(n)
-
-		if (n < data.params.length)
-			process(data.params[n])
+	function retrieveProduct() {
+		if (saveButton)
+			getProduct(deliverProduct)
 		else
 			cbDownloadFinished()
 	}
 
+	function next() {
+		if (stopped) {
+			retrieveProduct()
+			return
+		}
+
+		pbarDiv.progressbar('value', 100 * n / data.params.length)
+		pbarDiv.find('.wi-download-counter').text(n)
+
+		if (n < data.params.length) {
+			if (bulk) {
+				processBulk()
+				n += data.params.length
+			}
+			else {
+				process(data.params[n])
+				++n
+			}
+		}
+		else {
+			retrieveProduct()
+		}
+	}
+
 	function start() {
-		n = -1
+		if (saveButton)
+			saveButton.button('disable')
+
 		stopped = false
+		n = 0
 		next()
 	}
 
@@ -219,32 +384,6 @@ function FDSNWS_Download(controlDiv, db, authToken, data, cbDownloadFinished) {
 
 		if (handle != null)
 			handle.abort()
-	}
-
-	function getProduct(cbResult) {
-		var parts = [];
-
-		(function addPart(i) {
-			if (i < n) {
-				var t = db.transaction(["blobs"])
-
-				t.objectStore("blobs").get(data.params[i].id).onsuccess = function(event) {
-					var blob = event.target.result
-
-					if (blob != null)
-						parts.push(blob)
-
-					addPart(i+1)
-				}
-
-				t.onerror = function(event) {
-					addPart(i+1)
-				}
-			}
-			else {
-				cbResult(new Blob(parts))
-			}
-		})(0)
 	}
 
 	buildControl()
@@ -276,7 +415,7 @@ function FDSNWS_Request(controlDiv, db, authToken, filename) {
 		stopButton = $('<input class="wi-inline" type="button" value="Stop"/>')
 		stopButton.button({disabled: true}).click(function() { stop() })
 
-		saveButton = $('<a class="wi-inline" type="button" target="wi-DownloadFrame">Save</a>')
+		saveButton = $('<a class="wi-inline" type="button">Save</a>')
 		saveButton.button({disabled: true})
 
 		deleteButton = $('<input class="wi-inline" type="button" value="Delete"/>')
@@ -295,12 +434,17 @@ function FDSNWS_Request(controlDiv, db, authToken, filename) {
 	}
 
 	function deliverProduct(blobs) {
-		var file = new File(blobs, filename, { type: "application/vnd.fdsn.mseed" })
-		var url = URL.createObjectURL(file)
-		saveButton.attr('href', url)
+		var file = new File(blobs, data.filename, { type: data.contentType })
+
+		if (file.size > 0) {
+			var url = URL.createObjectURL(file)
+			saveButton.attr('href', url)
+			saveButton.attr('download', data.filename)
+			saveButton.button('enable')
+		}
+
 		startButton.button('enable')
 		stopButton.button('disable')
-		saveButton.button('enable')
 		deleteButton.button('enable')
 	}
 
@@ -318,8 +462,29 @@ function FDSNWS_Request(controlDiv, db, authToken, filename) {
 	}
 
 	function cbDownloadFinished() {
-		if (++finished == data.length)
+		if (++finished < data.length)
+			return
+
+		if (data.merge) {
 			retrieveProduct()
+		}
+		else {
+			startButton.button('enable')
+			stopButton.button('disable')
+			saveButton.button('disable')
+			deleteButton.button('enable')
+		}
+	}
+
+	function revokeObjectUrls() {
+		controlDiv.find('a[type=button]').each(function(i, button) {
+			var url = $(button).attr('href')
+
+			if (url) {
+				URL.revokeObjectURL(url)
+				$(button).removeAttr('href')
+			}
+		})
 	}
 
 	function start() {
@@ -328,15 +493,14 @@ function FDSNWS_Request(controlDiv, db, authToken, filename) {
 		saveButton.button('disable')
 		deleteButton.button('disable')
 
-		if (saveButton.attr('href')) {
-			URL.revokeObjectURL(saveButton.attr('href'))
-			saveButton.removeAttr('href')
-		}
+		revokeObjectUrls()
 
 		if (downloadsDiv.is(':empty')) {
 			$.each(data, function(i, d) {
 				var dlDiv = $('<div/>')
-				var dl = new FDSNWS_Download(dlDiv, db, authToken, d, cbDownloadFinished)
+				var dot = data.filename.lastIndexOf('.')
+				var filename = data.filename.slice(0, dot) + '_' + i + data.filename.slice(dot)
+				var dl = new FDSNWS_Download(dlDiv, db, authToken, d, data.options, data.bulk, data.merge, data.contentType, filename, cbDownloadFinished)
 				downloadsDiv.append(dlDiv)
 				downloads.push(dl)
 			})
@@ -356,16 +520,14 @@ function FDSNWS_Request(controlDiv, db, authToken, filename) {
 	}
 
 	function purge() {
+		revokeObjectUrls()
 		controlDiv.remove()
-
-		if (saveButton.attr('href')) {
-			URL.revokeObjectURL(saveButton.attr('href'))
-			saveButton.removeAttr('href')
-		}
 
 		var t = db.transaction(["blobs"], "readwrite")
 
 		$.each(data, function(i, d) {
+			t.objectStore("blobs").delete(d.id)
+
 			$.each(d.params, function(i, p) {
 				t.objectStore("blobs").delete(p.id)
 			})
@@ -381,6 +543,10 @@ function FDSNWS_Request(controlDiv, db, authToken, filename) {
 		var t = db.transaction(["blobs"], "readwrite")
 
 		$.each(data, function(i, d) {
+			t.objectStore("blobs").add(null).onsuccess = function(event) {
+				d.id = event.target.result
+			}
+
 			$.each(d.params, function(i, p) {
 				t.objectStore("blobs").add(null).onsuccess = function(event) {
 					p.id = event.target.result
@@ -395,9 +561,7 @@ function FDSNWS_Request(controlDiv, db, authToken, filename) {
 				data.id = event.target.result
 			}
 
-			t.oncomplete = function(event) {
-				start()
-			}
+			t.oncomplete = start
 		}
 	}
 
@@ -549,13 +713,12 @@ function FDSNWS_Control(controlDiv) {
 
 	function submitRequest(param) {
 		var reqDiv = $('<div class="wi-status-full-group"/>')
-		var filename = param.description.replace(' ', '_') + '.mseed'
-		var req = new FDSNWS_Request(reqDiv, db, authToken, filename)
+		var req = new FDSNWS_Request(reqDiv, db, authToken, param.filename)
 		statusListDiv.append(reqDiv)
 		callback()
 
 		var timewindows = JSON.parse(param.timewindows)
-		var postData = 'format=json\n'
+		var postData = 'service=' + param.service + '\nformat=json\n'
 
 		$.each(timewindows, function(i, item) {
 			var start = item[0]
@@ -584,7 +747,11 @@ function FDSNWS_Control(controlDiv) {
 					return
 				}
 
-				data.filename = filename
+				data.options = param.options
+				data.bulk = param.bulk
+				data.merge = param.merge
+				data.filename = param.filename
+				data.contentType = param.contentType
 				req.load(data)
 				req.create()
 			},
@@ -633,8 +800,7 @@ function FDSNWS_Control(controlDiv) {
 
 	buildControl()
 
-	// TODO: make configurable
-	var routerURL = '/eidaws/routing/1/query'
+	var routerURL = configurationProxy.value('fdsnws.routerURL', '/eidaws/routing/1/query')
 
 	// Public interface
 	this.init = init

@@ -997,13 +997,46 @@ function WIStatusListControl(htmlTagId) {
 		return true
 	}
 
+	function presets(param) {
+		switch (param.requesttype) {
+			case "FDSNWS-dataselect": return {
+				service: "dataselect",
+				options: {},
+				bulk: false,
+				merge: true,
+				contentType: "application/vnd.fdsn.mseed",
+				filename: param.description.replace(' ', '_') + ".mseed"
+			}
+
+			case "FDSNWS-station-xml": return {
+				service: "station",
+				options: { format: "xml", level: param.level },
+				bulk: true,
+				merge: false,
+				contentType: "application/xml",
+				filename: param.description.replace(' ', '_') + ".xml"
+			}
+
+			case "FDSNWS-station-text": return {
+				service: "station",
+				options: { format: "text", level: param.level },
+				bulk: true,
+				merge: true,
+				contentType: "text/plain",
+				filename: param.description.replace(' ', '_') + ".txt"
+			}
+
+			default: return {}
+		}
+	}
+
 	function submitRequest(param) {
 		if (!_controlDiv) return
 
 		var self = this
 
-		if (param.requesttype == "MSEED-dataselect") {
-			wiFDSNWS_Control.submitRequest(param)
+		if (param.requesttype.substr(0, 6) == "FDSNWS") {
+			wiFDSNWS_Control.submitRequest($.extend(param, presets(param)))
 			return true
 		}
 

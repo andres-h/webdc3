@@ -9,6 +9,13 @@
  *
  */
 
+function ajaxErrorMessage(jqXHR, textStatus) {
+	if (jqXHR.statusText)
+		return jqXHR.statusText
+	else
+		return textStatus
+}
+
 function FDSNWS_Download(controlDiv, db, authToken, data, options, bulk, merge, contentType, filename, cbDownloadFinished) {
 	// Private
 	var pbarDiv = null
@@ -81,7 +88,7 @@ function FDSNWS_Download(controlDiv, db, authToken, data, options, bulk, merge, 
 
 		tdcode.text(code)
 
-		if (text)
+		if (text && text != 'error')
 			tdtext.text(text)
 	}
 
@@ -130,11 +137,11 @@ function FDSNWS_Download(controlDiv, db, authToken, data, options, bulk, merge, 
 			store(blob, data.id)
 		})
 
-		handle.fail(function(jqXHR) {
+		handle.fail(function(jqXHR, textStatus) {
 			handle = null
 
 			if (!stopped)
-				statusBulk('ERROR')
+				statusBulk('ERROR', ajaxErrorMessage(jqXHR, textStatus))
 
 			next()
 		})
@@ -196,7 +203,7 @@ function FDSNWS_Download(controlDiv, db, authToken, data, options, bulk, merge, 
 			store(blob, p.id)
 		})
 
-		handle.fail(function(jqXHR) {
+		handle.fail(function(jqXHR, textStatus) {
 			handle = null
 
 			if (jqXHR.status == 401) {
@@ -205,7 +212,7 @@ function FDSNWS_Download(controlDiv, db, authToken, data, options, bulk, merge, 
 			}
 
 			if (!stopped)
-				status(p.id, 'ERROR')
+				status(p.id, 'ERROR', ajaxErrorMessage(jqXHR, textStatus))
 
 			next()
 		})
@@ -228,7 +235,7 @@ function FDSNWS_Download(controlDiv, db, authToken, data, options, bulk, merge, 
 			fetch(p)
 		})
 
-		handle.fail(function() {
+		handle.fail(function(jqXHR, textStatus) {
 			handle = null
 
 			if (stopped) {
@@ -236,7 +243,7 @@ function FDSNWS_Download(controlDiv, db, authToken, data, options, bulk, merge, 
 				return
 			}
 
-			wiConsole.error("fdsnws.js: " + url + ": authentication failed")
+			wiConsole.error("fdsnws.js: " + url + ": authentication failed: " + ajaxErrorMessage(jqXHR, textStatus))
 			authToken = null
 			cred = null
 			fetch(p)
@@ -755,8 +762,8 @@ function FDSNWS_Control(controlDiv) {
 				req.load(data)
 				req.create()
 			},
-			error: function() {
-				wiConsole.error("fdsnws.js: routing failed")
+			error: function(jqXHR, textStatus) {
+				wiConsole.error("fdsnws.js: routing failed: " + ajaxErrorMessage(jqXHR, textStatus))
 				reqDiv.remove()
 			}
 		})

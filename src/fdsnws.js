@@ -243,7 +243,45 @@ function FDSNWS_Download(controlDiv, db, authToken, data, options, bulk, merge, 
 				return
 			}
 
-			wiConsole.error("fdsnws.js: " + url + ": authentication failed: " + ajaxErrorMessage(jqXHR, textStatus))
+			wiConsole.error("fdsnws.js: " + url + ": " + ajaxErrorMessage(jqXHR, textStatus))
+			authToken = null
+			cred = null
+			fetch(p)
+		})
+	}
+
+	function wadl(p) {
+		var url = data.url.replace(/query$/, 'application.wadl')
+
+		handle = $.ajax({
+			type: 'GET',
+			url: url,
+			dataType: 'xml'
+		})
+
+		handle.done(function(xml) {
+			handle = null
+
+			if ($(xml).find('resource[path="auth"]').length) {
+				auth(p)
+				return
+			}
+
+			wiConsole.info("fdsnws.js: " + url + ": authentication is not supported")
+			authToken = null
+			cred = null
+			fetch(p)
+		})
+
+		handle.fail(function(jqXHR, textStatus) {
+			handle = null
+
+			if (stopped) {
+				cbDownloadFinished()
+				return
+			}
+
+			wiConsole.error("fdsnws.js: " + url + ": " + ajaxErrorMessage(jqXHR, textStatus))
 			authToken = null
 			cred = null
 			fetch(p)
@@ -254,7 +292,7 @@ function FDSNWS_Download(controlDiv, db, authToken, data, options, bulk, merge, 
 		var url = data.url
 
 		if (authToken && !cred) {
-			auth(p)
+			wadl(p)
 		}
 		else if (cred) {
 			var userpass = cred.split(':')

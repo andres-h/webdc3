@@ -1,7 +1,7 @@
 /*
  * WebDC 3
  *
- * (C) 2013-2016 Helmoltz-Zentrum Potsdam - Deutsches GeoForschungsZentrum GFZ
+ * (C) 2013-2016 Helmholtz-Zentrum Potsdam - Deutsches GeoForschungsZentrum GFZ
  *
  */
 
@@ -18,7 +18,7 @@ import initSubmit from './submit'
 import initReview from './review'
 import initInterface from './interface'
 
-var VERSION = "1.1 (2016.120)"
+var VERSION = "1.1 (2016.127)"
 
 window.WIError = function(message) {
 	this.name = undefined // omit exception name on the console

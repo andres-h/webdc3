@@ -259,7 +259,7 @@ function SubmitControl(htmlTagId) {
 			html += '<div>Current ID: <span id="scAuthUser"/></div>'
 			html += '<div>Valid until: <span id="scAuthValid"/></div>'
 			html += '<input id="scTokenSelect" type="file" style="visibility:hidden"/>';
-			html += '<input id="scTokenUpload" class="wi-inline" type="button" value="Upload Token"/>';
+			html += '<input id="scTokenLoad" class="wi-inline" type="button" value="Load Token"/>';
 			html += '<input id="scTokenRemove" class="wi-inline" type="button" value="Remove Token"/>';
 			html += '</div>';
 			_controlDiv.find("#sbtAuthTokenDiv").append(html);
@@ -431,7 +431,7 @@ function SubmitControl(htmlTagId) {
 			}
 		})
 
-		_controlDiv.find("#scTokenUpload").button().bind("click", function() {
+		_controlDiv.find("#scTokenLoad").button().bind("click", function() {
 			_controlDiv.find("#scTokenSelect").click();
 		})
 
